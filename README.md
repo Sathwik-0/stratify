@@ -2,6 +2,12 @@
 
 Stratify is an investor-grade Google Play intelligence MVP. It scrapes public Play Store reviews, runs a multi-pass Groq analysis pipeline, persists results in Supabase, and renders X-Ray reports plus company comparisons.
 
+## Live Deployment
+
+- Production: https://stratify-v11.vercel.app
+- Vercel project: `sathwiks-projects-f02fcb67/stratify-v11`
+- GitHub: https://github.com/Sathwik-0/stratify
+
 ## Stack
 
 - Next.js 16 App Router

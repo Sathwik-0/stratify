@@ -3,7 +3,8 @@ import { repairJSON, classifyError, nowISO } from '@/lib/intelligence'
 import { logTelemetry, estimatePromptTokens } from '@/lib/quality-gate'
 
 export const groq = new OpenAI({
-  apiKey:  process.env.GROQ_API_KEY!,
+  // Keep static builds deterministic; /api/health reports missing runtime env.
+  apiKey:  process.env.GROQ_API_KEY ?? 'missing-groq-key',
   baseURL: 'https://api.groq.com/openai/v1',
 })
 

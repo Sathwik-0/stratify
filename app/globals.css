@@ -1,0 +1,118 @@
+/* globals.css
+   Fonts now loaded via next/font in layout.tsx (zero render-blocking).
+   CSS variables reference the next/font CSS variables injected on <html>.
+*/
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --cream:      #FAEDD9;
+  --cream-dark: #F2E2C4;
+  --charcoal:   #080303;
+  --red:        #E8441F;
+  --red-dark:   #C63528;
+  --muted:      #8A7A72;
+  --border:     rgba(8,3,3,0.10);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background:              var(--cream);
+  color:                   var(--charcoal);
+  font-family:             var(--font-dm-sans, 'DM Sans', sans-serif);
+  -webkit-font-smoothing:  antialiased;
+}
+
+/* Shared @keyframes — previously duplicated in 4 separate <style> tags */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pd {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.3; transform: scale(0.8); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+/* Shimmer skeleton */
+.shimmer {
+  background:      linear-gradient(90deg, #f0e4cc 25%, #e8d9be 50%, #f0e4cc 75%);
+  background-size: 200% 100%;
+  animation:       shimmer 1.5s infinite;
+}
+
+/* Section numbers */
+.section-num {
+  font-family:    var(--font-dm-mono, 'DM Mono', monospace);
+  font-size:      11px;
+  color:          var(--muted);
+  letter-spacing: 0.5px;
+}
+
+/* Scroll reveal */
+.reveal {
+  opacity:    0;
+  transform:  translateY(20px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.reveal.visible {
+  opacity:   1;
+  transform: translateY(0);
+}
+
+/* Red accent line draw */
+.line-draw { position: relative; }
+.line-draw::after {
+  content:    '';
+  position:   absolute;
+  bottom:     -2px;
+  left:       0;
+  height:     2px;
+  width:      0;
+  background: var(--red);
+  transition: width 0.6s ease;
+}
+.line-draw.active::after { width: 100%; }
+
+/* ── Mobile responsive utilities ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .mobile-stack {
+    flex-direction: column !important;
+  }
+  .mobile-full {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .mobile-hide {
+    display: none !important;
+  }
+  .mobile-text-sm {
+    font-size: 14px !important;
+  }
+  .mobile-p-sm {
+    padding: 16px !important;
+  }
+}

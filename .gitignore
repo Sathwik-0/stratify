@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+
+# Next.js / build output
+.next/
+out/
+dist/
+build/
+.vercel/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TypeScript / caches / traces
+*.tsbuildinfo
+.eslintcache
+.turbo/
+.cache/
+coverage/
+trace/
+traces/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

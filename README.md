@@ -1,114 +1,181 @@
-# Stratify — Business Intelligence Engine
+# Stratify
 
-> See exactly why businesses win.
-
----
+Stratify is an investor-grade Google Play intelligence MVP. It scrapes public Play Store reviews, runs a multi-pass Groq analysis pipeline, persists results in Supabase, and renders X-Ray reports plus company comparisons.
 
 ## Stack
-- **Next.js 14** (App Router)
-- **Supabase** (Database + Realtime)
-- **Groq / LLaMA 3.3 70B** (3-pass AI pipeline)
-- **Apify** (Multi-source data collection)
-- **Fraunces + DM Sans** (Typography)
-- **Tailwind CSS** (Styling)
 
----
+- Next.js 16 App Router
+- React 19
+- Supabase database and realtime job state
+- Groq `llama-3.1-8b-instant`
+- `google-play-scraper`
+- TypeScript, ESLint, Tailwind CSS
 
-## Setup (5 minutes)
+## Architecture
 
-### 1. Install dependencies
+```text
+User search/start
+  -> POST /api/xray/search
+  -> POST /api/xray/start
+  -> google-play-scraper provider
+  -> jobs row updated to scraped
+  -> POST /api/xray/poll runs Groq passes
+  -> xray_results upsert
+  -> GET /api/xray/result
+  -> /xray/[slug] renders normalized report
+```
+
+The active pipeline is single-source Google Play. Apify has been removed; `/api/webhook/apify` remains only as a `410 Gone` compatibility stub.
+
+## Local Setup
+
 ```bash
-npm install
-```
-
-### 2. Configure environment variables
-Copy `.env.example` to `.env.local` — all keys are pre-filled.
-
-Only change you need:
-```
-NEXT_PUBLIC_APP_URL=https://your-app.vercel.app  ← update after first Vercel deploy
-```
-
-### 3. Run locally
-```bash
+npm ci
+cp .env.example .env.local
 npm run dev
 ```
-Visit http://localhost:3000
 
----
+Open `http://localhost:3000`.
 
-## Deploy to Vercel
+## Environment Variables
 
-### Step 1: Push to GitHub
+Required:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GROQ_API_KEY`
+
+Recommended:
+
+- `NEXT_PUBLIC_APP_URL`
+- `DEBUG_SECRET`
+- `DEV_BYPASS_RATE_LIMIT=true` for local testing only
+
+Never commit `.env`, `.env.local`, Groq keys, or Supabase service role keys.
+
+## Supabase Setup
+
+The app expects these core tables:
+
+- `companies`
+- `jobs`
+- `xray_results`
+- `compare_cache`
+- `rate_limits`
+- optional telemetry/eval tables used by the current pipeline
+
+Run the migration in `supabase/migrations/add_rate_limits.sql` if the durable limiter table does not exist.
+
+## Groq Setup
+
+Create a Groq API key at `https://console.groq.com`, set `GROQ_API_KEY`, then run:
+
 ```bash
-git init
-git add .
-git commit -m "Initial commit"
-git remote add origin YOUR_GITHUB_REPO
-git push -u origin main
+npm run typecheck
+npm run build
 ```
 
-### Step 2: Import to Vercel
-1. Go to vercel.com → New Project → Import your GitHub repo
-2. Add all environment variables from `.env.local` to Vercel dashboard
-3. Deploy
+The Groq client includes retry handling, JSON repair, truncation detection, schema validation, and pass-level telemetry.
 
-### Step 3: Update webhook URL
-After first deploy, copy your Vercel URL (e.g. `https://stratify-xyz.vercel.app`)
-Update in Vercel env vars:
+## Google Play Scraper
+
+Search and scraping use `google-play-scraper`. Known edge case: Zepto package `com.zeptoconsumerapp` can return `Error requesting Google Play` in local testing, which is tracked as a provider retrieval issue rather than an application rate-limit failure.
+
+## Analysis Pipeline
+
+1. Pass 1 classifies review text into business signals.
+2. Pass 2 clusters signals.
+3. Pass 3 creates the main investor framework.
+4. CEO playbook and investment passes add operating and investment views.
+5. Delta synthesis compares with prior data when available.
+6. Quality gates record structural, grounding, consistency, and regression diagnostics.
+
+If Groq output is malformed or truncated, the pipeline uses structured fallbacks and never persists broken partial JSON silently.
+
+## Caching
+
+`/api/xray/start` checks completed results before applying rate limits. Existing reports return immediately with:
+
+- `cached`
+- `analyzedAt`
+- `freshness`
+- `refresh.forceRefreshAvailable`
+
+Future hooks exist for `forceRefresh` and `refreshPolicy`, but no background revalidation, workers, or queues are implemented yet.
+
+## Rate Limits
+
+Production rate limiting is Supabase-backed and applies only to expensive new analysis/comparison work.
+
+Development bypass is allowed only when:
+
+- `NODE_ENV=development`
+- request host is localhost / `127.0.0.1` / `::1`
+- `DEV_BYPASS_RATE_LIMIT=true` and `NODE_ENV !== production`
+
+Production users do not bypass rate limits.
+
+## Compare Pipeline
+
+`/api/compare` reuses `compare_cache` first. Fresh comparison work is rate-limited, Groq-validated, and cached for reuse.
+
+## Health Check
+
+Use:
+
+```text
+GET /api/health
 ```
-NEXT_PUBLIC_APP_URL=https://stratify-xyz.vercel.app
-```
-Redeploy.
 
----
+It reports environment readiness, database connectivity, deployment environment, and latency without exposing secret values.
 
-## How the pipeline works
+## Verification
 
-```
-User clicks "Run X-Ray"
-    ↓
-POST /api/xray/start
-  → Creates job in Supabase
-  → Triggers Apify Play Store scraper with webhook URL
-  → Returns jobId instantly
-    ↓
-Frontend redirects to /loading-analysis?jobId=xxx
-  → Subscribes to Supabase Realtime on jobs table
-    ↓
-Apify scrapes reviews on THEIR servers (30-90s)
-  → Calls back your webhook when done
-    ↓
-POST /api/webhook/apify
-  → Pass 1: Classify signals (Groq ~3s)
-  → Pass 2: Cluster patterns (Groq ~3s)  
-  → Pass 3: 6-Force analysis (Groq ~5s)
-  → Stores result in Supabase
-  → Updates job status to "completed"
-    ↓
-Supabase Realtime fires to loading page
-  → Redirects to /xray/[slug]
+```bash
+npm run typecheck
+npm run lint
+npm run build
 ```
 
----
+Smoke checks:
 
-## Pages
+- `/api/health`
+- `/api/xray/start` for cached `phonepe`, `swiggy`, `cred`
+- `/xray/phonepe`
+- `/xray/cred`
+- `/api/compare` for `phonepe` vs `swiggy`
 
-| Page | Route | Purpose |
-|------|-------|---------|
-| Homepage | `/` | Hero + company cards + how it works |
-| Loading | `/loading-analysis` | Live pipeline progress |
-| X-Ray | `/xray/[slug]` | Full 6-Force analysis |
-| Explore | `/explore` | Company discovery feed |
-| Compare | `/compare` | Side-by-side comparison |
+## Deployment
 
----
+Deploy on Vercel from GitHub `main`.
 
-## Database (already set up)
+1. Configure all required environment variables in Vercel.
+2. Keep `DEV_BYPASS_RATE_LIMIT` unset in production.
+3. Ensure GitHub Actions secrets exist if CI builds require env values.
+4. Run `/api/health` after deployment.
 
-Your Supabase project `yrwrjnatmbgxneawfvqs` has all 13 tables created and seeded with 10 companies.
+See `docs/deployment-checklist.md`.
 
----
+## Workflow
 
-## After launch — rotate your Groq key
-The Groq API key was shared during setup. Rotate it at console.groq.com after going live.
+- `main`: production-ready
+- `dev`: integration
+- `feature/*`: isolated changes
+
+Use conventional commits. See `docs/branching-and-commits.md`.
+
+## Troubleshooting
+
+See:
+
+- `docs/debugging-checklist.md`
+- `docs/recovery.md`
+
+Key recovery principle: prefer small commits and `git revert` over force pushes.
+
+## Known Limitations
+
+- Current MVP is Google Play only.
+- Zepto currently exposes a `google-play-scraper` retrieval failure in this local environment.
+- No queues, workers, vector DB, Reddit, YouTube, LinkedIn, subscriptions, or enterprise orchestration are implemented yet.

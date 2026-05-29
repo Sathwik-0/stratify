@@ -17,6 +17,7 @@ import { fetchEvidence }        from '@/lib/providers/orchestrator'
 import { getDefaultProviders }  from '@/lib/providers/registry'
 import { generateCorrelationId } from '@/lib/correlation'
 import { getXrayFreshness, type RefreshPolicy } from '@/lib/xray-cache'
+import { buildMetadataOnlyEvidence } from '@/lib/providers/play-store-fallbacks'
 import type { PipelineErrorCode } from '@/lib/providers/types'
 
 export async function POST(req: NextRequest) {
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest) {
         jobId:         job.id,
         appId:         company.app_id_android,
         companyName:   company.name,
+        description:   company.description,
         correlationId,
       })
     })
@@ -116,10 +118,11 @@ interface ScrapeParams {
   jobId:         string
   appId:         string
   companyName:   string
+  description?:   string | null
   correlationId: string
 }
 
-async function scrapeAndStore({ jobId, appId, companyName, correlationId }: ScrapeParams) {
+async function scrapeAndStore({ jobId, appId, companyName, description, correlationId }: ScrapeParams) {
   const scrapeStart = Date.now()
 
   try {
@@ -146,13 +149,33 @@ async function scrapeAndStore({ jobId, appId, companyName, correlationId }: Scra
     if (orchestration.evidence.length === 0) {
       const primaryError = orchestration.errors[0]
       const code         = primaryError?.code ?? 'no_reviews_found'
-      const msg          = buildUserFacingError(code, appId, companyName)
-
-      await failJob(jobId, code, msg, correlationId, {
-        providerErrors: orchestration.errors,
-        durationMs,
+      const fallbackEvidence = buildMetadataOnlyEvidence({
         appId,
+        companyName,
+        description,
+        correlationId,
+        providerError: primaryError?.message,
       })
+
+      await supabaseAdmin.from('jobs').update({
+        status:           'scraped',
+        current_step:     'Reviews unavailable. Starting metadata-only fallback analysis...',
+        progress_percent: 30,
+        metadata: {
+          correlationId,
+          reviews: fallbackEvidence.map(e => ({ text: e.text, rating: null })),
+          review_count: 0,
+          evidence_count: fallbackEvidence.length,
+          scraped_at: new Date().toISOString(),
+          scrape_duration: durationMs,
+          source: 'google_play',
+          retrieval_mode: 'metadata_only_fallback',
+          fallback_reason: code,
+          provider_errors: orchestration.errors,
+          provider_results: orchestration.providerResults,
+          appId,
+        },
+      }).eq('id', jobId)
       return
     }
 

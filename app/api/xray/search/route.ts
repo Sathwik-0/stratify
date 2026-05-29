@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
         name:           foundName,
         category:       'Consumer App',
         app_id_android: appId,
-        description:    `${foundName} — added via user search`,
+        description:    `${foundName} - added via user search`,
         is_custom:      true,
       })
       .select()

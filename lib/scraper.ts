@@ -6,6 +6,7 @@ export const runtime = 'nodejs'
 
 import { googlePlayProvider } from '@/lib/providers/google-play'
 import { generateCorrelationId } from '@/lib/correlation'
+import { findPlayStoreFallbackApp } from '@/lib/providers/play-store-fallbacks'
 
 export interface Review  { text: string; rating: number | null }
 export interface AppInfo { appId: string; title: string; summary?: string; score?: number; reviews?: number }
@@ -14,13 +15,13 @@ export async function searchApp(companyName: string): Promise<AppInfo | null> {
   try {
     const gplay = (await import('google-play-scraper')).default
     const results = await gplay.search({ term: companyName, num: 5, country: 'in', lang: 'en', throttle: 1 })
-    if (!results?.length) return null
+    if (!results?.length) return findPlayStoreFallbackApp(companyName)
     const lower = companyName.toLowerCase()
     const best  = results.find((r: any) => r.title?.toLowerCase().includes(lower) || lower.includes(r.title?.toLowerCase() ?? '')) ?? results[0]
     return { appId: best.appId, title: best.title, summary: best.summary, score: best.score, reviews: (best as any).reviews }
   } catch (err) {
     console.error('[scraper] searchApp failed:', err)
-    return null
+    return findPlayStoreFallbackApp(companyName)
   }
 }
 
@@ -38,6 +39,6 @@ export async function fetchAppInfo(appId: string): Promise<AppInfo | null> {
     return { appId: app.appId, title: app.title, summary: app.summary, score: app.score, reviews: app.reviews }
   } catch (err) {
     console.error(`[scraper] fetchAppInfo failed for ${appId}:`, err)
-    return null
+    return findPlayStoreFallbackApp(appId)
   }
 }
